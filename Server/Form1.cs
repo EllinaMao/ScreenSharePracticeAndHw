@@ -31,6 +31,7 @@
         {
             Image oldImage = pictureBoxDisplay.Image;
             pictureBoxDisplay.Image = frame;
+            pictureBoxDisplay.SizeMode = PictureBoxSizeMode.Zoom;
             oldImage?.Dispose();
         }
 

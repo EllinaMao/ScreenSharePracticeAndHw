@@ -12,6 +12,7 @@ namespace Server
 
         private const int HEADER_SIZE = 24;
         private ConcurrentDictionary<Guid, Assemble> incompleteFrames = new ConcurrentDictionary<Guid, Assemble>();
+
         public event Action<Bitmap> FrameReady;
         public event Action<string> LogEvent;
 
@@ -31,7 +32,7 @@ namespace Server
                 Log($"Server is on {PORT}...");
 
                 Task.Run(() => ReceiveLoopAsync(cansel.Token));
-                //Task.Run(() => CleanupLoopAsync(cansel.Token));
+                Task.Run(() => CleanupLoopAsync(cansel.Token));
             }
             catch (Exception ex)
             {
@@ -55,7 +56,6 @@ namespace Server
 
                     Assemble assembler = incompleteFrames.GetOrAdd(frameId, (id) => new Assemble(totalPackets));
 
-                    //копия данных
                     byte[] payload = new byte[data.Length - HEADER_SIZE];
                     Array.Copy(data, HEADER_SIZE, payload, 0, payload.Length);
 
@@ -63,8 +63,7 @@ namespace Server
 
                     if (frameComplete)
                     {
-                        AssembleFrame(assembler);
-                        incompleteFrames.TryRemove(frameId, out _); // Очищаем
+                        await AssembleFrameAsync(assembler, frameId);
                     }
                 }
                 catch (OperationCanceledException) { break; }
@@ -72,62 +71,70 @@ namespace Server
             }
         }
 
-        private void AssembleFrame(Assemble assembler)
+        private async Task AssembleFrameAsync(Assemble assembler, Guid frameId)
         {
             try
             {
-                // Собираем все куски
-                using (MemoryStream ms = new MemoryStream())
+                
+                await Task.Run(() =>
                 {
-                    for (int i = 0; i < assembler.TotalPackets; i++)
+                    // Собираем все куски
+                    using (MemoryStream ms = new MemoryStream())
                     {
-
-                        if (!assembler.Packets.ContainsKey(i))
+                        for (int i = 0; i < assembler.TotalPackets; i++)
                         {
-                            Log($"error with packet {i}"); return;
+                            if (!assembler.Packets.ContainsKey(i))
+                            {
+                                ctx.Post(_ => Log($"error with packet {i}"), null);
+                                return;
+                            }
+                            ms.Write(assembler.Packets[i], 0, assembler.Packets[i].Length);
                         }
-                        ms.Write(assembler.Packets[i], 0, assembler.Packets[i].Length);
-                    }
 
-                    byte[] fullImageData = ms.ToArray();
+                        byte[] fullImageData = ms.ToArray();
 
-                    // в Bitmap
-                    using (MemoryStream imgStream = new MemoryStream(fullImageData))
-                    {
-                        Bitmap frame = new Bitmap(imgStream);
-                        // клон потому что иначе у меня падает форма из за потоков
-                        LogPicture((Bitmap)frame.Clone());
+                        // в Bitmap
+                        using (MemoryStream imgStream = new MemoryStream(fullImageData))
+                        {
+                            Bitmap frame = new Bitmap(imgStream);
+                            // клон потому что иначе у меня падает форма из за потоков
+                            LogPicture((Bitmap)frame.Clone());
+                        }
                     }
-                }
+                }); 
             }
             catch (Exception ex)
             {
                 Log(ex.Message);
             }
+            finally
+            {
+                incompleteFrames.TryRemove(frameId, out _);
+            }
         }
 
+        private async Task CleanupLoopAsync(CancellationToken token)
+        {
+            while (!token.IsCancellationRequested)
+            {
+                await Task.Delay(2000, token); // Проверяем каждые 2 сек
+                if (token.IsCancellationRequested) break;
 
-        //private async Task CleanupLoopAsync(CancellationToken token)
-        //{
-        //    while (!token.IsCancellationRequested)
-        //    {
-        //        await Task.Delay(2000, token);
-        //        if (token.IsCancellationRequested) break;
+                var staleFrames = incompleteFrames
+                    .Where(kvp => (DateTime.UtcNow - kvp.Value.LastPacketTime).TotalSeconds > 15) // "Мертвые" > 15 сек
+                    .Select(kvp => kvp.Key)
+                    .ToList();
 
-        //        var staleFrames = incompleteFrames
-        //            .Where(kvp => (DateTime.UtcNow - kvp.Value.LastPacketTime).TotalSeconds > 15)
-        //            .Select(kvp => kvp.Key)
-        //            .ToList();
+                foreach (var key in staleFrames)
+                {
+                    if (incompleteFrames.TryRemove(key, out _))
+                    {
+                        Log($"deleted lost pack {key}.");
+                    }
+                }
+            }
+        }
 
-        //        foreach (var key in staleFrames)
-        //        {
-        //            if (incompleteFrames.TryRemove(key, out _))
-        //            {
-        //                Log($"deleted lost pack {key}.");
-        //            }
-        //        }
-        //    }
-        //}
 
         private void Log(string message)
         {
@@ -151,7 +158,6 @@ namespace Server
         {
             cansel?.Cancel();
             server?.Close();
-
         }
     }
 }
