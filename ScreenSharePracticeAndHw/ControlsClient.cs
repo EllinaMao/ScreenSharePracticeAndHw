@@ -115,7 +115,7 @@ namespace ScreenSharePracticeAndHw
                         byte[] data = ImageToBytes(screenshot, 50L);
                         await SendImageAsync(data, token);
                     }
-                    await Task.Delay(1000, token);
+                    await Task.Delay(100, token);
                 }
             }
             catch (OperationCanceledException op)

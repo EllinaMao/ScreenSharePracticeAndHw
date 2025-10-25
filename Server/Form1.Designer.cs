@@ -28,19 +28,46 @@
         /// </summary>
         private void InitializeComponent()
         {
+            pictureBoxDisplay = new PictureBox();
+            listBoxLogs = new ListBox();
+            ((System.ComponentModel.ISupportInitialize)pictureBoxDisplay).BeginInit();
             SuspendLayout();
+            // 
+            // pictureBoxDisplay
+            // 
+            pictureBoxDisplay.Location = new Point(12, 12);
+            pictureBoxDisplay.Name = "pictureBoxDisplay";
+            pictureBoxDisplay.Size = new Size(890, 484);
+            pictureBoxDisplay.TabIndex = 0;
+            pictureBoxDisplay.TabStop = false;
+            // 
+            // listBoxLogs
+            // 
+            listBoxLogs.FormattingEnabled = true;
+            listBoxLogs.Location = new Point(12, 502);
+            listBoxLogs.Name = "listBoxLogs";
+            listBoxLogs.Size = new Size(890, 84);
+            listBoxLogs.TabIndex = 1;
             // 
             // Form1
             // 
-            AutoScaleDimensions = new SizeF(7F, 15F);
+            AutoScaleDimensions = new SizeF(8F, 20F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(800, 450);
+            ClientSize = new Size(914, 600);
+            Controls.Add(listBoxLogs);
+            Controls.Add(pictureBoxDisplay);
+            Margin = new Padding(3, 4, 3, 4);
             Name = "Form1";
             Text = "Form1";
             FormClosing += Form1_FormClosing;
+            Load += Form1_Load;
+            ((System.ComponentModel.ISupportInitialize)pictureBoxDisplay).EndInit();
             ResumeLayout(false);
         }
 
         #endregion
+
+        private PictureBox pictureBoxDisplay;
+        private ListBox listBoxLogs;
     }
 }
